@@ -65,6 +65,7 @@ footer{text-align:center;font:.8rem system-ui,sans-serif;opacity:.6;margin:22px 
 <button data-m="quiz">🎯 Quiz</button>
 <button data-m="write">✍️ Escribir</button>
 <button data-m="date">📅 Fecha o posición</button>
+<button data-m="prog">📈 Mi progreso</button>
 </nav>
 <div id="app"></div>
 <footer>Las Chapas ECOS · Deutsch</footer>
@@ -83,7 +84,7 @@ const norm=s=>s.toLowerCase().trim().replace(/ß/g,'ss').replace(/ä/g,'ae').rep
 document.getElementById('nav').onclick=e=>{
  const b=e.target.closest('button');if(!b)return;
  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
- ({learn,quiz:startQuiz,write:startWrite,date:startDate})[b.dataset.m]();
+ if(!P.user)return login();({learn,quiz:startQuiz,write:startWrite,date:startDate,prog:progress})[b.dataset.m]();
 };
 
 function learn(){
@@ -101,8 +102,8 @@ function learn(){
 let S;
 function head(){return `<div class="bar"><i style="width:${S.i/S.total*100}%"></i></div><div class="stats"><span>Pregunta ${Math.min(S.i+1,S.total)}/${S.total}</span><span>✅ ${S.score}</span><span>🔥 Racha ${S.streak}</span></div>`}
 function end(){
- const p=Math.round(S.score/S.total*100);
- app.innerHTML=`<div class="panel"><div class="big">${p>=80?'🏆':p>=50?'👏':'💪'}</div><h2 style="color:var(--navy);margin:0">${S.score} / ${S.total}</h2><p class="sub">${p>=80?'¡Ausgezeichnet!':p>=50?'¡Gut gemacht!':'¡Sigue practicando!'}</p><button class="go" id="again">Jugar otra vez</button></div>`;
+ const p=Math.round(S.score/S.total*100);saveRes();
+ app.innerHTML=`<div class="panel"><div class="big">${p>=80?'🏆':p>=50?'👏':'💪'}</div><h2 style="color:var(--navy);margin:0">${S.score} / ${S.total}</h2><p class="sub">${p>=80?'¡Ausgezeichnet!':p>=50?'¡Gut gemacht!':'¡Sigue practicando!'}</p><button class="go" id="again">Jugar otra vez</button><p class="tip">${SHEET_URL?'📤 Resultado enviado a tu profe':'💾 Resultado guardado en Mi progreso'}</p></div>`;
  $('#again').onclick=({quiz:startQuiz,write:startWrite,date:startDate})[S.mode];
 }
 function startQuiz(){S={mode:'quiz',i:0,total:10,score:0,streak:0};quizQ()}
@@ -114,7 +115,7 @@ function quizQ(){
  app.innerHTML=`<div class="panel">${head()}<div class="q">${rev?'der '+W[n]:n+'.'}</div><div class="sub">${rev?'¿Qué número es?':'¿Cómo se dice en alemán?'}</div><div class="opts">${o.map(x=>`<button data-n="${x}">${rev?x+'.':'der '+W[x]}</button>`).join('')}</div><div class="fb"></div></div>`;
  $('.opts').onclick=e=>{
   const b=e.target.closest('button');if(!b||b.disabled)return;
-  const ok=+b.dataset.n===n;
+  const ok=+b.dataset.n===n;miss(ok,n);
   document.querySelectorAll('.opts button').forEach(x=>{x.disabled=true;if(+x.dataset.n===n)x.classList.add('ok')});
   if(!ok)b.classList.add('no');else ding();
   S.score+=ok;S.streak=ok?S.streak+1:0;say(W[n]);
@@ -130,7 +131,7 @@ function writeQ(){
  const inp=$('#in');inp.focus();
  const check=()=>{
   if(inp.disabled)return;
-  const v=norm(inp.value.replace(/^der\s+/i,'')),ok=v===norm(W[n]);
+  const v=norm(inp.value.replace(/^der\s+/i,'')),ok=v===norm(W[n]);miss(ok,n);
   inp.disabled=true;if(ok)ding();S.score+=ok;S.streak=ok?S.streak+1:0;say(W[n]);
   $('.fb').className='fb '+(ok?'ok':'no');$('.fb').textContent=ok?'¡Richtig! 🎉':`Correcto: der ${W[n]}`;
   S.i++;setTimeout(writeQ,1700);
@@ -157,7 +158,7 @@ function dateQ(){
  app.innerHTML=`<div class='panel'>${head()}<div class='rule'><div><b>📅 Fecha</b><br>am + ordinal + <b>-n</b><br>am siebten Mai</div><div class='r'><b>🏅 Posición</b><br>der/die + ordinal<br>der Siebte</div></div><div class='q'>${n}.</div><div class='sub' style='font-size:1.25rem;opacity:1'>${txt.replace('___',"<b style='color:var(--red)'>_____</b>")}</div><div class='sub' style='font-size:1rem;margin-top:-8px'>🇪🇸 ${es}</div><div class='opts'>${o.map(x=>`<button data-v='${x}'>${x}</button>`).join('')}</div><div class='fb'></div></div>`;
  $('.opts').onclick=e=>{
   const b=e.target.closest('button');if(!b||b.disabled)return;
-  const ok=b.dataset.v===right;
+  const ok=b.dataset.v===right;miss(ok,n);
   document.querySelectorAll('.opts button').forEach(x=>{x.disabled=true;if(x.dataset.v===right)x.classList.add('ok')});
   if(!ok)b.classList.add('no');else ding();
   S.score+=ok;S.streak=ok?S.streak+1:0;
@@ -167,7 +168,33 @@ function dateQ(){
   S.i++;setTimeout(dateQ,2600);
  };
 }
-learn();
+const SHEET_URL=''; // <- aquí se pega la URL de Google Apps Script
+const KEY='ordPrg',MN={quiz:'Quiz',write:'Escribir',date:'Fecha o posición'};
+let P={user:null,rounds:[],wrong:{}};
+try{P=Object.assign(P,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
+const store=()=>{try{localStorage.setItem(KEY,JSON.stringify(P))}catch(e){}};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+function miss(ok,n){if(!ok)(S.w=S.w||[]).push(n)}
+function saveRes(){
+ const p=Math.round(S.score/S.total*100),w=S.w||[];
+ P.rounds.push({t:Date.now(),m:S.mode,s:S.score,n:S.total});
+ w.forEach(n=>P.wrong[n]=(P.wrong[n]||0)+1);store();
+ if(SHEET_URL&&P.user)try{fetch(SHEET_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({nombre:P.user.name,grupo:P.user.group,actividad:MN[S.mode],aciertos:S.score,total:S.total,porcentaje:p,falladas:w.join(', ')})})}catch(e){}
+}
+function login(){
+ app.innerHTML=`<div class='panel'><div class='big'>👋</div><h2 style='color:var(--navy);margin:0 0 6px'>¡Bienvenida!</h2><p class='sub'>Escribe tu nombre para guardar tu progreso</p><input id='nm' placeholder='Nombre y apellido'><br><br><input id='gr' placeholder='Curso o grupo (ej. 2º A)'><br><button class='go' id='st'>Empezar</button><div class='fb no'></div></div>`;
+ if(P.user){$('#nm').value=P.user.name;$('#gr').value=P.user.group}
+ $('#st').onclick=()=>{const n=$('#nm').value.trim(),g=$('#gr').value.trim();if(!n){$('.fb').textContent='Escribe tu nombre';return}P.user={name:n,group:g};store();learn()};
+}
+function progress(){
+ const R=P.rounds,u=P.user;
+ const rows=Object.keys(MN).map(m=>{const r=R.filter(x=>x.m===m),pc=x=>Math.round(x.s/x.n*100),best=r.length?Math.max(...r.map(pc)):0,avg=r.length?Math.round(r.reduce((a,x)=>a+pc(x),0)/r.length):0;return `<div style='margin-bottom:14px'><div class='stats'><span>${MN[m]}</span><span>${r.length} rondas · media ${avg}% · mejor ${best}%</span></div><div class='bar'><i style='width:${avg}%'></i></div></div>`}).join('');
+ const wr=Object.entries(P.wrong).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([n])=>`${n}. ${W[n]}`);
+ const last=R.slice(-5).reverse().map(x=>`<li>${new Date(x.t).toLocaleDateString('es-ES')} · ${MN[x.m]} · ${x.s}/${x.n}</li>`).join('');
+ app.innerHTML=`<div class='panel' style='text-align:left'><h2 style='color:var(--navy);margin:0 0 14px'>📈 ${esc(u.name)} <small style='opacity:.6'>${esc(u.group)}</small></h2>${rows}<h3 style='color:var(--red)'>🔁 Para repasar</h3><p>${wr.length?wr.join(' · '):'¡Todavía no tienes errores!'}</p><h3 style='color:var(--navy)'>🕒 Últimas rondas</h3><ul>${last||'<li>Aún no has jugado ninguna ronda</li>'}</ul><div style='text-align:center'><button class='go' id='chg'>Cambiar de alumna</button></div></div>`;
+ $('#chg').onclick=login;
+}
+P.user?learn():login();
 </script>
 </body>
 </html>
