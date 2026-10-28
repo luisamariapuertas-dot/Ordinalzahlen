@@ -191,8 +191,14 @@ function progress(){
  const rows=Object.keys(MN).map(m=>{const r=R.filter(x=>x.m===m),pc=x=>Math.round(x.s/x.n*100),best=r.length?Math.max(...r.map(pc)):0,avg=r.length?Math.round(r.reduce((a,x)=>a+pc(x),0)/r.length):0;return `<div style='margin-bottom:14px'><div class='stats'><span>${MN[m]}</span><span>${r.length} rondas · media ${avg}% · mejor ${best}%</span></div><div class='bar'><i style='width:${avg}%'></i></div></div>`}).join('');
  const wr=Object.entries(P.wrong).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([n])=>`${n}. ${W[n]}`);
  const last=R.slice(-5).reverse().map(x=>`<li>${new Date(x.t).toLocaleDateString('es-ES')} · ${MN[x.m]} · ${x.s}/${x.n}</li>`).join('');
- app.innerHTML=`<div class='panel' style='text-align:left'><h2 style='color:var(--navy);margin:0 0 14px'>📈 ${esc(u.name)} <small style='opacity:.6'>${esc(u.group)}</small></h2>${rows}<h3 style='color:var(--red)'>🔁 Para repasar</h3><p>${wr.length?wr.join(' · '):'¡Todavía no tienes errores!'}</p><h3 style='color:var(--navy)'>🕒 Últimas rondas</h3><ul>${last||'<li>Aún no has jugado ninguna ronda</li>'}</ul><div style='text-align:center'><button class='go' id='chg'>Cambiar de alumna</button></div></div>`;
- $('#chg').onclick=login;
+ app.innerHTML=`<div class='panel' style='text-align:left'><h2 style='color:var(--navy);margin:0 0 14px'>📈 ${esc(u.name)} <small style='opacity:.6'>${esc(u.group)}</small></h2>${rows}<h3 style='color:var(--red)'>🔁 Para repasar</h3><p>${wr.length?wr.join(' · '):'¡Todavía no tienes errores!'}</p><h3 style='color:var(--navy)'>🕒 Últimas rondas</h3><ul>${last||'<li>Aún no has jugado ninguna ronda</li>'}</ul><div style='text-align:center'><button class='go' id='snd'>📤 Enviar mi progreso</button> <button class='go' id='chg' style='background:transparent;color:var(--navy)'>Cambiar de alumna</button><div class='fb' id='sm'></div></div></div>`;
+ $('#chg').onclick=login;$('#snd').onclick=sendAll;
+}
+function sendAll(){
+ const R=P.rounds,s=R.reduce((a,x)=>a+x.s,0),n=R.reduce((a,x)=>a+x.n,0),m=$('#sm');
+ const w=Object.entries(P.wrong).sort((a,b)=>b[1]-a[1]).slice(0,8).map(x=>x[0]).join(', ');
+ if(!R.length){m.textContent='Juega primero una ronda 😊';return}
+ try{fetch(SHEET_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({nombre:P.user.name,grupo:P.user.group,actividad:'RESUMEN ('+R.length+' rondas)',aciertos:s,total:n,porcentaje:Math.round(s/n*100),falladas:w})});m.className='fb ok';m.textContent='📤 ¡Progreso enviado a tu profe!'}catch(e){m.className='fb no';m.textContent='No se pudo enviar, inténtalo otra vez'}
 }
 P.user?learn():login();
 </script>
