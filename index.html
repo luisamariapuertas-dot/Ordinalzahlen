@@ -168,7 +168,7 @@ function dateQ(){
   S.i++;setTimeout(dateQ,2600);
  };
 }
-const SHEET_URL=''; // <- aquí se pega la URL de Google Apps Script
+const SHEET_URL='https://script.google.com/macros/s/AKfycbxh8fuQKP5i-Zznz2TdjCUrqDdVYATHxc6JqFk4XJOUtx8TNLC30rBXtZD3gjoSB6DI/exec'; // <- aquí se pega la URL de Google Apps Script
 const KEY='ordPrg',MN={quiz:'Quiz',write:'Escribir',date:'Fecha o posición'};
 let P={user:null,rounds:[],wrong:{}};
 try{P=Object.assign(P,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
