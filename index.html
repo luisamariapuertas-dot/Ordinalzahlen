@@ -68,7 +68,7 @@ footer{text-align:center;font:.8rem system-ui,sans-serif;opacity:.6;margin:22px 
 <button data-m="prog">📈 Mi progreso</button>
 </nav>
 <div id="app"></div>
-<footer>Las Chapas ECOS · Deutsch · versión 5 (envío activado)</footer>
+<footer>Las Chapas ECOS · Deutsch · versión 6 (envío con confirmación)</footer>
 </div>
 <script>
 const W=["","erste","zweite","dritte","vierte","fünfte","sechste","siebte","achte","neunte","zehnte","elfte","zwölfte","dreizehnte","vierzehnte","fünfzehnte","sechzehnte","siebzehnte","achtzehnte","neunzehnte","zwanzigste","einundzwanzigste","zweiundzwanzigste","dreiundzwanzigste","vierundzwanzigste","fünfundzwanzigste","sechsundzwanzigste","siebenundzwanzigste","achtundzwanzigste","neunundzwanzigste","dreißigste"];
@@ -103,7 +103,7 @@ let S;
 function head(){return `<div class="bar"><i style="width:${S.i/S.total*100}%"></i></div><div class="stats"><span>Pregunta ${Math.min(S.i+1,S.total)}/${S.total}</span><span>✅ ${S.score}</span><span>🔥 Racha ${S.streak}</span></div>`}
 function end(){
  const p=Math.round(S.score/S.total*100);saveRes();
- app.innerHTML=`<div class="panel"><div class="big">${p>=80?'🏆':p>=50?'👏':'💪'}</div><h2 style="color:var(--navy);margin:0">${S.score} / ${S.total}</h2><p class="sub">${p>=80?'¡Ausgezeichnet!':p>=50?'¡Gut gemacht!':'¡Sigue practicando!'}</p><button class="go" id="again">Jugar otra vez</button><p class="tip">${SHEET_URL?'📤 Resultado enviado a tu profe':'💾 Resultado guardado en Mi progreso'}</p></div>`;
+ app.innerHTML=`<div class="panel"><div class="big">${p>=80?'🏆':p>=50?'👏':'💪'}</div><h2 style="color:var(--navy);margin:0">${S.score} / ${S.total}</h2><p class="sub">${p>=80?'¡Ausgezeichnet!':p>=50?'¡Gut gemacht!':'¡Sigue practicando!'}</p><button class="go" id="again">Jugar otra vez</button><p class="tip" id="sst">${SHEET_URL?'⏳ Enviando…':'💾 Resultado guardado en Mi progreso'}</p></div>`;
  $('#again').onclick=({quiz:startQuiz,write:startWrite,date:startDate})[S.mode];
 }
 function startQuiz(){S={mode:'quiz',i:0,total:10,score:0,streak:0};quizQ()}
@@ -179,7 +179,7 @@ function saveRes(){
  const p=Math.round(S.score/S.total*100),w=S.w||[];
  P.rounds.push({t:Date.now(),m:S.mode,s:S.score,n:S.total});
  w.forEach(n=>P.wrong[n]=(P.wrong[n]||0)+1);store();
- if(SHEET_URL&&P.user)try{fetch(SHEET_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({nombre:P.user.name,grupo:P.user.group,actividad:MN[S.mode],aciertos:S.score,total:S.total,porcentaje:p,falladas:w.join(', ')})})}catch(e){}
+ sendSheet({nombre:P.user.name,grupo:P.user.group,actividad:MN[S.mode],aciertos:S.score,total:S.total,porcentaje:p,falladas:w.join(', ')}).then(r=>{const e=$('#sst');if(e&&r!=='off')e.textContent=r==='ok'?'📤 Resultado enviado a tu profe ✅':'⚠️ No se pudo enviar ('+r+')'});
 }
 function login(){
  app.innerHTML=`<div class='panel'><div class='big'>👋</div><h2 style='color:var(--navy);margin:0 0 6px'>¡Bienvenida!</h2><p class='sub'>Escribe tu nombre para guardar tu progreso</p><input id='nm' placeholder='Nombre y apellido'><br><br><input id='gr' placeholder='Curso o grupo (ej. 2º A)'><br><button class='go' id='st'>Empezar</button><div class='fb no'></div></div>`;
@@ -194,11 +194,16 @@ function progress(){
  app.innerHTML=`<div class='panel' style='text-align:left'><h2 style='color:var(--navy);margin:0 0 14px'>📈 ${esc(u.name)} <small style='opacity:.6'>${esc(u.group)}</small></h2>${rows}<h3 style='color:var(--red)'>🔁 Para repasar</h3><p>${wr.length?wr.join(' · '):'¡Todavía no tienes errores!'}</p><h3 style='color:var(--navy)'>🕒 Últimas rondas</h3><ul>${last||'<li>Aún no has jugado ninguna ronda</li>'}</ul><div style='text-align:center'><button class='go' id='snd'>📤 Enviar mi progreso</button> <button class='go' id='chg' style='background:transparent;color:var(--navy)'>Cambiar de alumna</button><div class='fb' id='sm'></div></div></div>`;
  $('#chg').onclick=login;$('#snd').onclick=sendAll;
 }
+async function sendSheet(obj){
+ if(!SHEET_URL||!P.user)return 'off';
+ try{const r=await fetch(SHEET_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(obj)});const t=(await r.text()).trim();return t==='ok'?'ok':'respuesta '+r.status+': '+t.slice(0,40)}
+ catch(e){return 'sin conexión con Google: '+e.message}
+}
 function sendAll(){
  const R=P.rounds,s=R.reduce((a,x)=>a+x.s,0),n=R.reduce((a,x)=>a+x.n,0),m=$('#sm');
  const w=Object.entries(P.wrong).sort((a,b)=>b[1]-a[1]).slice(0,8).map(x=>x[0]).join(', ');
  if(!R.length){m.textContent='Juega primero una ronda 😊';return}
- try{fetch(SHEET_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({nombre:P.user.name,grupo:P.user.group,actividad:'RESUMEN ('+R.length+' rondas)',aciertos:s,total:n,porcentaje:Math.round(s/n*100),falladas:w})});m.className='fb ok';m.textContent='📤 ¡Progreso enviado a tu profe!'}catch(e){m.className='fb no';m.textContent='No se pudo enviar, inténtalo otra vez'}
+ m.className='fb';m.textContent='⏳ Enviando…';sendSheet({nombre:P.user.name,grupo:P.user.group,actividad:'RESUMEN ('+R.length+' rondas)',aciertos:s,total:n,porcentaje:Math.round(s/n*100),falladas:w}).then(r=>{m.className='fb '+(r==='ok'?'ok':'no');m.textContent=r==='ok'?'📤 ¡Progreso enviado a tu profe! ✅':'⚠️ No se pudo enviar ('+r+')'});
 }
 P.user?learn():login();
 </script>
